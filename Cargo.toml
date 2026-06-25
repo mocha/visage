@@ -51,7 +51,10 @@ chrono = { version = "0.4", features = ["serde"] }
 image = "0.25"
 
 # ONNX inference
-ort = "2.0.0-rc.11"
+# load-dynamic: dlopen onnxruntime at runtime (ORT_DYLIB_PATH) instead of the
+# default download-binaries / system-linking — both fail in the Nix sandbox, and
+# ort rc.11 won't link nixpkgs onnxruntime 1.24.4. ndarray: TensorRef::from_array_view.
+ort = { version = "2.0.0-rc.11", default-features = false, features = ["load-dynamic", "ndarray"] }
 ndarray = "0.17"
 
 # Cryptography (embedding encryption)

@@ -316,7 +316,11 @@ mod tests {
                         || msg.contains("not provided")
                         || msg.contains("Failed to connect")
                         || msg.contains("no enrolled models")
-                        || msg.contains("unknown user"),
+                        || msg.contains("unknown user")
+                        // Sandboxed builds (e.g. Nix) have no system D-Bus socket,
+                        // so the connection fails with a plain I/O error. That is
+                        // still the daemon-not-present path this test guards.
+                        || msg.contains("No such file or directory"),
                     "unexpected error message: {msg}"
                 );
             }

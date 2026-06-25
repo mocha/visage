@@ -14,6 +14,8 @@
 , pkg-config
 , pam
 , dbus
+, onnxruntime
+, makeWrapper
 , substituteAll ? null
 }:
 
@@ -25,21 +27,31 @@ rustPlatform.buildRustPackage {
 
   cargoLock.lockFile = ../../Cargo.lock;
 
-  nativeBuildInputs = [ pkg-config ];
+  # bindgenHook: v4l2-sys-mit runs bindgen at build time, which needs libclang
+  # (sets LIBCLANG_PATH). pkg-config locates pam/dbus.
+  nativeBuildInputs = [ pkg-config rustPlatform.bindgenHook makeWrapper ];
   buildInputs = [ pam dbus ];
 
-  # cargo test runs unit tests; integration tests require a camera + daemon
+  # cargo test runs unit tests; integration tests require a camera + daemon.
+  # ORT_DYLIB_PATH: with ort load-dynamic, any test that constructs a Session
+  # dlopen()s the runtime at test time, so point it at nixpkgs onnxruntime.
   doCheck = true;
   checkPhase = ''
     runHook preCheck
+    export ORT_DYLIB_PATH=${onnxruntime}/lib/libonnxruntime.so
     cargo test --workspace --lib
     runHook postCheck
   '';
 
   postInstall = ''
-    # PAM module (cdylib — not installed by cargo install)
-    install -Dm755 target/release/libpam_visage.so \
+    # PAM module (cdylib — not installed by cargo install). Recent buildRustPackage
+    # builds under a target-triple subdir (target/<triple>/release), not target/release.
+    install -Dm755 target/*/release/libpam_visage.so \
       $out/lib/security/pam_visage.so
+
+    # ort load-dynamic: visaged dlopen()s onnxruntime via ORT_DYLIB_PATH at runtime.
+    wrapProgram $out/bin/visaged \
+      --set ORT_DYLIB_PATH ${onnxruntime}/lib/libonnxruntime.so
 
     # D-Bus system bus policy
     install -Dm644 packaging/dbus/org.freedesktop.Visage1.conf \
